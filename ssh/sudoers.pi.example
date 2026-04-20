@@ -1,0 +1,18 @@
+# Install on the Raspberry Pi at /etc/sudoers.d/backup (mode 0440,
+# owned root:root). Use `visudo -c -f /etc/sudoers.d/backup` to validate.
+#
+# Grants the unprivileged `backup` user the minimum-viable sudo rights to:
+#   1. Run rrsync rooted at /var/lib/docker/volumes (so the data pull can
+#      read root-owned volume contents). rrsync itself enforces the jail.
+#   2. Run `docker compose -f <stack> stop` and `... start` (and only those)
+#      so backup-hook.sh can bracket the backup with a clean container stop.
+#
+# No wildcards that could be escape hatches. No shells. No !requiretty blanket;
+# instead we scope it so the NOPASSWD path still works under sshd-forced commands.
+
+Defaults:backup !requiretty
+Defaults:backup env_reset
+
+backup ALL=(root) NOPASSWD: /usr/bin/rrsync -ro /var/lib/docker/volumes
+backup ALL=(root) NOPASSWD: /usr/bin/docker compose -f /home/pi/stack/compose.yml stop
+backup ALL=(root) NOPASSWD: /usr/bin/docker compose -f /home/pi/stack/compose.yml start

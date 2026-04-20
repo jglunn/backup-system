@@ -1,0 +1,11 @@
+# rsync exclude patterns for Windows-sourced backups.
+# Ship empty by default — add project-specific patterns as needed.
+# See `man rsync` FILTER RULES for syntax.
+
+# Common candidates (uncomment to enable):
+# Thumbs.db
+# desktop.ini
+# $RECYCLE.BIN/
+# System Volume Information/
+# *.tmp
+# ~$*

@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      - name: Run shellcheck
+        # Lint every tracked shell script. -x follows sourced files so lib/common.sh
+        # is checked in the context of the script that sources it.
+        run: |
+          mapfile -t files < <(git ls-files '*.sh')
+          echo "checking: ${files[*]}"
+          shellcheck -x -S style "${files[@]}"
+
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install openssh-server, rsync
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq openssh-server rsync coreutils
+          sudo systemctl enable --now ssh
+          # Sanity check sshd is up on :22
+          sudo ss -tlnp | grep -q ':22 ' || (sudo systemctl status ssh && exit 1)
+
+      - name: Run end-to-end demo (backup + verify + retention)
+        run: |
+          chmod +x scripts/*.sh
+          bash scripts/demo-local.sh
+
+      - name: Show final metrics files on failure
+        if: failure()
+        run: |
+          echo "--- /tmp/backup-demo/repo tree ---"
+          find /tmp/backup-demo/repo -maxdepth 3 -print 2>/dev/null || true
+          echo "--- metrics ---"
+          cat /tmp/backup-demo/repo/metrics/*.prom 2>/dev/null || true

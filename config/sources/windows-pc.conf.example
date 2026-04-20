@@ -1,0 +1,29 @@
+# Per-source config consumed by scripts/backup.sh via load_source_config().
+# Copy to /etc/backup/sources/windows-pc.conf and fill in real values.
+
+# Friendly identifier — used for the snapshot directory name and metric labels.
+NAME="windows-pc"
+
+# SSH target — reach the Windows WSL2 sshd instance.
+HOST="windows-pc.lan"
+PORT=2222
+REMOTE_USER="backup"
+
+# Private key for the data pull (rrsync -ro enforced on the remote side).
+KEY="/home/backup/.ssh/id_backup_windows"
+
+# Rsync remote path. With rrsync the server jails access to its configured
+# directory, so './' is the conventional way to name "the root of that jail".
+SRC_PATH="./"
+
+# Rsync invocation options. For Windows files coming via WSL /mnt/c we skip
+# -HAX — the NTFS-over-9P layer does not support ACLs/xattrs cleanly.
+RSYNC_OPTS="-a --numeric-ids --delete --stats"
+
+# Optional exclude list (one pattern per line, rsync syntax).
+EXCLUDE_FILE="/etc/backup/excludes/windows.txt"
+
+# No pre/post hooks for Windows.
+PRE_CMD=""
+POST_CMD=""
+HOOK_KEY=""

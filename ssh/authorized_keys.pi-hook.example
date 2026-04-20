@@ -1,0 +1,13 @@
+# Install on the Raspberry Pi at /home/backup/.ssh/authorized_keys, on a
+# SEPARATE line from the data-pull key. The hook key's ONLY job is to invoke
+# /usr/local/sbin/backup-hook.sh, which whitelists "stop" and "start" against
+# $SSH_ORIGINAL_COMMAND and runs `sudo docker compose ...` for exactly those
+# two verbs. Any other command is rejected.
+#
+# Using a separate key (with a separate authorized_keys line) makes the
+# least-privilege split auditable: the data key can read volumes but cannot
+# touch Docker; the hook key can stop/start the stack but cannot read data.
+#
+# Pair with HOOK_KEY= in /etc/backup/sources/raspberry-pi.conf.
+
+command="/usr/local/sbin/backup-hook.sh",restrict ssh-ed25519 AAAA...REPLACE-ME... backup-hook@ubuntu-vm

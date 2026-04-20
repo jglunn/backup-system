@@ -1,0 +1,16 @@
+# /etc/cron.d/backup — installed by scripts/install.sh
+# Central scheduler for the cross-platform backup system. Runs as the
+# unprivileged `backup` user. Output is emailed to MAILTO on non-empty stderr.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=root
+
+# Daily pulls — staggered so they never overlap and so the SSH fanout to the
+# Pi does not race its own docker stop/start window.
+0  2 * * * backup /usr/local/bin/backup windows-pc
+15 2 * * * backup /usr/local/bin/backup raspberry-pi
+
+# Weekly integrity scan — re-hashes every file in the latest snapshot of
+# every source and flips backup_checksum_verification to 0 on mismatch.
+30 4 * * 0 backup /usr/local/bin/verify-checksums

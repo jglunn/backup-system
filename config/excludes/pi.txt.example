@@ -1,0 +1,7 @@
+# rsync exclude patterns for Raspberry Pi Docker-volume backups.
+# Ship empty by default — containers are stopped during transfer, so there
+# should be no open sockets or pid files to skip.
+
+# Common candidates:
+# *.sock
+# *.pid

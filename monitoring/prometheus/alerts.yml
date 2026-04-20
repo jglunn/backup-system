@@ -1,0 +1,51 @@
+# Canonical alert definitions. Prometheus evaluates these locally so the
+# /alerts endpoint shows their firing state; notifications are delivered via
+# the mirrored Grafana-managed rules in
+# monitoring/grafana/provisioning/alerting/rules.yaml. If you later add
+# Alertmanager you can route these directly instead.
+
+groups:
+  - name: backups
+    interval: 1m
+    rules:
+      - alert: BackupStale
+        expr: time() - backup_last_success_timestamp_seconds > 26 * 3600
+        for: 10m
+        labels: {severity: warning, service: backup}
+        annotations:
+          summary: "Backup for {{ $labels.source }} is stale"
+          description: "No successful backup for {{ $labels.source }} in over 26 hours."
+
+      - alert: BackupFailed
+        expr: backup_last_exit_code != 0
+        for: 1m
+        labels: {severity: critical, service: backup}
+        annotations:
+          summary: "Backup for {{ $labels.source }} failed"
+          description: "Last backup run for {{ $labels.source }} exited with code {{ $value }}."
+
+      - alert: BackupNeverRan
+        expr: absent(backup_last_run_timestamp_seconds)
+        for: 1h
+        labels: {severity: critical, service: backup}
+        annotations:
+          summary: "Backup metrics absent"
+          description: "No backup metrics have ever been scraped — the scheduler or node_exporter textfile collector is misconfigured."
+
+      - alert: ChecksumMismatch
+        expr: backup_checksum_verification == 0
+        for: 5m
+        labels: {severity: critical, service: backup}
+        annotations:
+          summary: "SHA-256 verification failed for {{ $labels.source }}"
+          description: "The latest snapshot for {{ $labels.source }} does not match its MANIFEST.sha256. Likely bit-rot or tampering."
+
+      - alert: BackupDiskLow
+        expr: |
+          node_filesystem_avail_bytes{mountpoint="/srv/backups"}
+            / node_filesystem_size_bytes{mountpoint="/srv/backups"} < 0.15
+        for: 10m
+        labels: {severity: warning, service: backup}
+        annotations:
+          summary: "Backup repository running low on space"
+          description: "Less than 15% free on /srv/backups."

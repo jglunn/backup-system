@@ -1,0 +1,29 @@
+# Per-source config consumed by scripts/backup.sh via load_source_config().
+# Copy to /etc/backup/sources/raspberry-pi.conf and fill in real values.
+
+NAME="raspberry-pi"
+
+HOST="raspberrypi.lan"
+PORT=22
+REMOTE_USER="backup"
+
+# Data-pull key. Must be paired on the Pi with an authorized_keys entry that
+# runs `sudo /usr/bin/rrsync -ro /var/lib/docker/volumes` (see
+# ssh/authorized_keys.pi-data.example + ssh/sudoers.pi.example).
+KEY="/home/backup/.ssh/id_backup_pi"
+
+SRC_PATH="./"
+
+# -HAX preserves hardlinks, ACLs, and xattrs that Docker volumes can carry.
+# --fake-super stores owner/perm/xattr metadata in user xattrs on the receive
+# side, so the Ubuntu-side rsync does not need to run as root.
+RSYNC_OPTS="-aHAX --numeric-ids --delete --stats --fake-super"
+
+EXCLUDE_FILE="/etc/backup/excludes/pi.txt"
+
+# Pre/post hooks run over a SEPARATE ssh key whose authorized_keys pins it to
+# /usr/local/sbin/backup-hook.sh — that script whitelists only "stop"/"start"
+# and dispatches to `sudo docker compose` against the stack compose file.
+PRE_CMD="stop"
+POST_CMD="start"
+HOOK_KEY="/home/backup/.ssh/id_backup_pi_hook"

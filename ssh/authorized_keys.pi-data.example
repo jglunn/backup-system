@@ -1,0 +1,12 @@
+# Install on the Raspberry Pi at /home/backup/.ssh/authorized_keys.
+#
+# /var/lib/docker/volumes is 0700 root:root — the `backup` user cannot read it
+# directly, so we run rrsync through sudo with a narrow NOPASSWD rule (see
+# ssh/sudoers.pi.example). rrsync enforces the `-ro <dir>` jail against the
+# rsync command the client actually sends, so even with sudo the key cannot
+# escape /var/lib/docker/volumes.
+#
+# Pair this key with the PRIVATE key referenced by `KEY=` in
+# /etc/backup/sources/raspberry-pi.conf on the Ubuntu host.
+
+command="sudo /usr/bin/rrsync -ro /var/lib/docker/volumes",restrict ssh-ed25519 AAAA...REPLACE-ME... backup-data@ubuntu-vm

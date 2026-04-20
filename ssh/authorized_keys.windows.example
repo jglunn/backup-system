@@ -1,0 +1,14 @@
+# Install on the Windows PC inside WSL2 at ~/.ssh/authorized_keys for the
+# `backup` user that owns the sshd on port 2222.
+#
+# The command= prefix jails this key to read-only rsync rooted at
+# /mnt/c/backup-src (the folder mirrored from C:\backup-src). Anything the
+# client tries to run other than the matching rsync invocation is rejected.
+#
+# `restrict` is a shorthand that turns off port-forwarding, agent-forwarding,
+# X11-forwarding, pty allocation, and execution of ~/.ssh/rc. Belt-and-braces.
+#
+# Replace AAAA...backup@ubuntu-vm with the real public key of
+# /home/backup/.ssh/id_backup_windows.pub on the Ubuntu host.
+
+command="/usr/bin/rrsync -ro /mnt/c/backup-src",restrict ssh-ed25519 AAAA...REPLACE-ME... backup@ubuntu-vm

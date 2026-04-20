@@ -1,0 +1,29 @@
+# Secrets & local state
+monitoring/.env
+monitoring/grafana-data/
+monitoring/prometheus-data/
+
+# Real configs (only .example is tracked)
+config/sources/*.conf
+!config/sources/*.conf.example
+!config/sources/local-demo.conf
+config/excludes/*.txt
+!config/excludes/*.txt.example
+
+# SSH keys / known_hosts
+ssh/*.pub
+ssh/*_ed25519
+ssh/known_hosts
+
+# Demo/test artifacts
+/tmp-demo/
+*.log
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Claude Code local session state
+.claude/

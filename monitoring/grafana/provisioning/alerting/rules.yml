@@ -1,0 +1,164 @@
+apiVersion: 1
+
+# Grafana-managed alert rules — mirror the Prometheus alerts in
+# prometheus/alerts.yml but execute inside Grafana so notifications flow
+# through the provisioned contact point in contact-points.yml without needing
+# a separate Alertmanager.
+
+groups:
+  - orgId: 1
+    name: backups
+    folder: Backups
+    interval: 1m
+    rules:
+      - uid: backup-stale
+        title: BackupStale
+        condition: C
+        for: 10m
+        noDataState: NoData
+        execErrState: Error
+        labels: {severity: warning, service: backup}
+        annotations:
+          summary: "Backup for {{ $labels.source }} is stale"
+          description: "No successful backup for {{ $labels.source }} in over 26 hours."
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: time() - backup_last_success_timestamp_seconds
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [93600]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last}
+
+      - uid: backup-failed
+        title: BackupFailed
+        condition: C
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels: {severity: critical, service: backup}
+        annotations:
+          summary: "Backup for {{ $labels.source }} failed"
+          description: "Last backup run for {{ $labels.source }} exited non-zero."
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: backup_last_exit_code
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last}
+
+      - uid: backup-never-ran
+        title: BackupNeverRan
+        condition: C
+        for: 1h
+        noDataState: Alerting
+        execErrState: Error
+        labels: {severity: critical, service: backup}
+        annotations:
+          summary: "Backup metrics absent"
+          description: "No backup metrics have ever been scraped."
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 3600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: absent(backup_last_run_timestamp_seconds)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last}
+
+      - uid: backup-checksum-mismatch
+        title: ChecksumMismatch
+        condition: C
+        for: 5m
+        noDataState: NoData
+        execErrState: Error
+        labels: {severity: critical, service: backup}
+        annotations:
+          summary: "SHA-256 verification failed for {{ $labels.source }}"
+          description: "Latest snapshot does not match its MANIFEST.sha256."
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: backup_checksum_verification
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: lt, params: [1]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last}
+
+      - uid: backup-disk-low
+        title: BackupDiskLow
+        condition: C
+        for: 10m
+        noDataState: NoData
+        execErrState: Error
+        labels: {severity: warning, service: backup}
+        annotations:
+          summary: "Backup repository running low on space"
+          description: "Less than 15% free on /srv/backups."
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: |
+                node_filesystem_avail_bytes{mountpoint="/srv/backups"}
+                  / node_filesystem_size_bytes{mountpoint="/srv/backups"}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: lt, params: [0.15]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last}
