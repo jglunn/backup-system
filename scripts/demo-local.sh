@@ -103,7 +103,8 @@ assert_exists "$SNAP1_PATH/MANIFEST.sha256"
 METRICS="$BACKUP_METRICS_DIR/backup_local-demo.prom"
 CHK_METRICS="$BACKUP_METRICS_DIR/backup_local-demo_checksum.prom"
 assert_contains "$METRICS"     'backup_last_exit_code{source="local-demo"} 0'
-assert_contains "$CHK_METRICS" 'backup_checksum_verification{source="local-demo"} 1'
+# Checksum gauge is owned by verify-checksums.sh — not asserted here. The
+# clean-path and failure-path assertions live further down in this script.
 
 step "Manifest validates"
 if (cd "$SNAP1_PATH" && sha256sum --quiet -c MANIFEST.sha256); then
@@ -115,7 +116,7 @@ fi
 # ---------------------------------------------------------- second run ----
 # No file changes → expect hardlink reuse between SNAP1 and SNAP2.
 step "Backup run #2 (no changes — expect hardlinks)"
-sleep 61   # snapshot stamps have minute precision; force a new dir
+sleep 1   # second-precision stamps; one second is enough to force a new dir
 "$REPO_DIR/scripts/backup.sh" local-demo
 SNAP2=$(readlink "$BACKUP_ROOT/local-demo/current")
 SNAP2_PATH="$BACKUP_ROOT/local-demo/$SNAP2"
@@ -127,7 +128,7 @@ assert_eq "$I1" "$I2" "dummy.txt hardlinked between snapshots"
 # ---------------------------------------------------------- third run ----
 step "Backup run #3 (modify one file — expect inode divergence)"
 echo "hello from windows-pc — modified" > "$BACKUP_DEMO_DIR/src/dummy.txt"
-sleep 61
+sleep 1
 "$REPO_DIR/scripts/backup.sh" local-demo
 SNAP3=$(readlink "$BACKUP_ROOT/local-demo/current")
 SNAP3_PATH="$BACKUP_ROOT/local-demo/$SNAP3"
@@ -159,6 +160,21 @@ else
     ok "verify correctly reported failure"
 fi
 assert_contains "$CHK_METRICS" 'backup_checksum_verification{source="local-demo"} 0'
+
+# Regression: backup.sh used to re-write the checksum gauge to 1 at the end of
+# every run. Because the manifest is (re)built from the on-disk tree, that
+# self-check is tautological — so a real verify-time mismatch would be
+# silently cleared by the next backup. Fix: backup.sh no longer touches the
+# gauge; verify-checksums.sh owns it.
+step "backup after verify-failure keeps checksum gauge at 0"
+sleep 1
+"$REPO_DIR/scripts/backup.sh" local-demo
+assert_contains "$CHK_METRICS" 'backup_checksum_verification{source="local-demo"} 0'
+
+# Also check that no orphan snapshot dir was left by any of the runs above.
+step "no .partial-* orphan dirs left behind"
+ORPHANS=$(find "$BACKUP_ROOT/local-demo" -maxdepth 1 -type d -name '.partial-*' | wc -l)
+assert_eq "$ORPHANS" "0" "no leftover .partial-* dirs under local-demo/"
 
 # ---------------------------------------------------------- retention ----
 step "retention.sh against synthetic dated dirs"

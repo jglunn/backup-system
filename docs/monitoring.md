@@ -14,7 +14,7 @@ All services bind to `127.0.0.1` on the host. There is no public attack surface;
 | `backup_last_duration_seconds{source}` | `write_metrics` | Wall-clock duration of the run. |
 | `backup_last_bytes_transferred{source}` | `write_metrics` | `du --apparent-size` of the new snapshot — logical size, ignoring hardlink dedup. |
 | `backup_last_files_count{source}` | `write_metrics` | Line count of `MANIFEST.sha256`. |
-| `backup_checksum_verification{source}` | `write_checksum_metric` in `backup.sh` and `verify-checksums.sh` | 1 = manifest verified; 0 = mismatch. |
+| `backup_checksum_verification{source}` | `write_checksum_metric` in `verify-checksums.sh` | 1 = manifest verified; 0 = mismatch. Only the weekly integrity job updates this — a fresh backup does not reset it, so a flagged mismatch keeps firing until verify runs again. |
 | `backup_checksum_last_run_timestamp_seconds{source}` | `write_checksum_metric` | When the last verification ran. |
 
 Everything else (capacity, load, memory) comes from stock node_exporter collectors.

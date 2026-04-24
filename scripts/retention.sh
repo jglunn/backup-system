@@ -32,7 +32,7 @@ cd "$TARGET"
 # string, so no date math is required for ordering.
 mapfile -t ALL < <(find . -maxdepth 1 -mindepth 1 -type d \
     -regextype posix-extended \
-    -regex '\./[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{4}Z' \
+    -regex '\./[0-9]{4}-[0-9]{2}-[0-9]{2}T([0-9]{4}|[0-9]{6})Z' \
     -printf '%f\n' | sort -r)
 
 if [[ ${#ALL[@]} -eq 0 ]]; then

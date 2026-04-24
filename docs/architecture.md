@@ -25,7 +25,6 @@ cron  ──▶       │                                                       
                 │ 7. ln -sfn <stamp> current.new && mv -Tf current.new current              │
                 │ 8. retention.sh repo/                 # GFS prune                         │
                 │ 9. write_metrics <source> 0 <dur> <bytes> <files>                         │
-                │10. write_checksum_metric <source> 1                                       │
                 └────────────────────────────────────────────────────────────────────────────┘
 ```
 

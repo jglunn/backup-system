@@ -27,11 +27,21 @@ load_source_config "$SOURCE_NAME"
 acquire_lock "$NAME"
 
 TARGET="$BACKUP_ROOT/$NAME"
-STAMP=$(date -u +%FT%H%MZ)
+STAMP=$(date -u +%FT%H%M%SZ)
+# Staging dir uses a dotfile prefix so retention.sh (which only matches
+# YYYY-MM-DDT... directly) never treats it as a candidate snapshot.
+STAGING="$TARGET/.partial-$STAMP"
 NEW="$TARGET/$STAMP"
 CURRENT_LINK="$TARGET/current"
 
 mkdir -p "$TARGET" "$BACKUP_METRICS_DIR"
+
+# Sweep leftover partial-snapshot dirs from prior failed runs. Safe because we
+# hold the per-source flock — no other backup.sh for $NAME can be writing
+# under $TARGET right now.
+find "$TARGET" -maxdepth 1 -mindepth 1 -type d -name '.partial-*' \
+    -exec rm -rf --one-file-system {} + \
+    || warn "partial-dir sweep hit errors (continuing)"
 
 START=$(now_s)
 BACKUP_DURATION=0   # used by die() trap if we abort early
@@ -49,7 +59,7 @@ fi
 # --link-dest is evaluated relative to the destination dir, so "../current"
 # resolves to $TARGET/current. On the first run the symlink doesn't exist
 # yet — rsync skips link-dest silently and does a full pull.
-log "rsync pull from $USER@$HOST:$SRC_PATH -> $NEW"
+log "rsync pull from $REMOTE_USER@$HOST:$SRC_PATH -> $STAGING"
 RSYNC_LOG=$(mktemp)
 
 # $RSYNC_OPTS comes from the source config (e.g. "-aHAX --numeric-ids"); it
@@ -63,7 +73,7 @@ rsync $RSYNC_OPTS \
       --link-dest=../current \
       "${EXCLUDE_ARGS[@]}" \
       -e "ssh -i $KEY -p $PORT -o BatchMode=yes -o StrictHostKeyChecking=yes" \
-      "$USER@$HOST:$SRC_PATH" "$NEW/" \
+      "$REMOTE_USER@$HOST:$SRC_PATH" "$STAGING/" \
       >"$RSYNC_LOG" 2>&1 || {
         rc=$?
         warn "rsync failed (rc=$rc) — stderr/stdout:"
@@ -87,13 +97,19 @@ fi
 log "building MANIFEST.sha256"
 MANIFEST_TMP=$(mktemp)
 (
-    cd "$NEW"
+    cd "$STAGING"
     find . -type f -print0 \
         | LC_ALL=C sort -z \
         | xargs -0 sha256sum
 ) >"$MANIFEST_TMP"
-mv -f "$MANIFEST_TMP" "$NEW/MANIFEST.sha256"
-MANIFEST_FILES=$(wc -l < "$NEW/MANIFEST.sha256")
+mv -f "$MANIFEST_TMP" "$STAGING/MANIFEST.sha256"
+MANIFEST_FILES=$(wc -l < "$STAGING/MANIFEST.sha256")
+
+# ---- promote staging → final snapshot -------------------------------------
+# Until this rename, $STAMP/ does not exist. Any failure above leaves the
+# half-built tree in $STAGING, which the next run's sweep removes — so
+# retention and verify-checksums never see an incomplete snapshot.
+mv -T "$STAGING" "$NEW"
 
 # ---- atomic symlink swap ---------------------------------------------------
 # ln -sfn + mv -T is the standard trick for an atomic symlink rename on Linux
@@ -112,10 +128,10 @@ BACKUP_DURATION=$(( $(now_s) - START ))
 # useful than the on-disk delta for a "how big is this backup" panel.
 BYTES=$(du -sb --apparent-size "$NEW" | awk '{print $1}')
 write_metrics "$NAME" 0 "$BACKUP_DURATION" "$BYTES" "$MANIFEST_FILES"
-# Manifest was just built from the on-disk tree, so by definition it matches.
-# verify-checksums.sh will re-evaluate this gauge against the stored manifest
-# on its own weekly schedule to catch post-backup bit-rot.
-write_checksum_metric "$NAME" 1
+# backup_checksum_verification is owned by verify-checksums.sh. Writing 1
+# here would be tautological (manifest was just built from the on-disk tree)
+# and would silently clear a real mismatch from the last verify — the next
+# backup would rebuild the manifest from still-corrupt disk state.
 
 rm -f "$RSYNC_LOG"
 log "backup of '$NAME' complete in ${BACKUP_DURATION}s ($MANIFEST_FILES files, $BYTES bytes)"
